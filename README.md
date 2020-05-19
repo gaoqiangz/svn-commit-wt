@@ -18,9 +18,9 @@ rustc-link-search=["native=C:\\Program Files\\OpenSSL-Win64\\lib\\VC\\static"]
 为了方便使用，`bin\SvnCommitWT.exe`为已经编译的程序。 (链接为VC2015的运行时)
 # 部署说明
 ## 1. 配置ClientId和ClientSecret
-1）进入Worktile研发版的`企业后台管理` > `应用管理` > `自定义应用`。
-2）新建应用，输入`应用名`，将`DevOps：开发`的权限设置为`读写`，点击确定。
-3）在应用列表中找到创建的应用，分别复制`ClientID`和`Secret`。
+1）进入Worktile研发版的`企业后台管理` > `应用管理` > `自定义应用`。  
+2）新建应用，输入`应用名`，将`DevOps：开发`的权限设置为`读写`，点击确定。  
+3）在应用列表中找到创建的应用，分别复制`ClientID`和`Secret`。  
 4）回到服务器
 更新`config.toml`配置里的`client_id`和`client_secret`：
 ```
