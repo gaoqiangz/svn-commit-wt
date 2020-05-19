@@ -1,5 +1,6 @@
 # svn-commit-wt
-SVN代码提交记录同步到Worktile
+SVN代码提交记录同步到Worktile  
+自动提取提交记录里的分支名称 （如： 提交受影响目录`root/branches/beta/files/`，分支名称为`beta`）
 # 环境
 > rust: 1.44.0-nightly (94d346360 2020-04-09)  
 > toolchain: nightly-x86_64-pc-windows-msvc  
@@ -32,7 +33,7 @@ client_secret = "自定义应用的CLIENT_SECRECT"
 ```
 SET "SVNCWT=D:\Program Files\svn_commit_wt\SvnCommitWT.exe"
 
-"%SVNCWT%" commit -p "%1" -n "JMP" -r "%2"
+"%SVNCWT%" commit -p "%1" -n "REPO_NAME" -r "%2"
 ```
 ## 3. 将`SvnCommitWT`注册为Windows服务并启动
 ```
@@ -50,7 +51,9 @@ SvnCommitWT service --start
 ```
 `commit`命令
 ```
---repo_name <repo_name> --repo_path <repo_path> --revision <revision>
+-p,--repo_path SVN仓库本地路径
+-n,--repo_name SVN仓库名称
+-r,--revision  本交提交的版本号
 ```
 ### 客户端提交代码
 向代码仓库提交代码，commit message中提及Worktile的工作项即可，例如：
@@ -58,3 +61,6 @@ SvnCommitWT service --start
 svn commit -m 'feat(scope): #CD-7 some comment'
 ```
 这里的`CD-7`是Worktile工作项（史诗、特性、用户故事、任务、缺陷）的编号，在Worktile中点开某一个工作项即可在左上角找到工作项编号。
+
+# 官方实现
+https://github.com/sunjingyun/svn-commit-sync-to-worktile
