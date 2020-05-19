@@ -1,12 +1,12 @@
 # svn-commit-wt
 SVN代码提交记录同步到Worktile
 # 环境
-> rust: 1.44.0-nightly (94d346360 2020-04-09)
-> toolchain: nightly-x86_64-pc-windows-msvc
-> openssl: 1.1.1d
+> rust: 1.44.0-nightly (94d346360 2020-04-09)  
+> toolchain: nightly-x86_64-pc-windows-msvc  
+> openssl: 1.1.1d  
 > VisualSVN Server: 3.6.4
-# 静态链接openssl与VC CRT
-## 配置`.cargo/config`
+## 静态链接openssl与VC CRT
+### 配置`.cargo/config`
 ```
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
@@ -34,13 +34,13 @@ SET "SVNCWT=D:\Program Files\svn_commit_wt\SvnCommitWT.exe"
 
 "%SVNCWT%" commit -p "%1" -n "JMP" -r "%2"
 ```
-## 3. 并`SvnCommitWT`注册为Windows服务并启动
+## 3. 将`SvnCommitWT`注册为Windows服务并启动
 ```
 SvnCommitWT service --install
 SvnCommitWT service --start
 ```
-## 4. `SvnCommitWT`支持的命令行参数
-[service]命令
+## 4. `SvnCommitWT`支持的命令
+`service`命令
 ```
 --install      安装为Windows服务
 --uninstall    从Windows服务卸载
@@ -48,7 +48,7 @@ SvnCommitWT service --start
 --stop         停止Windows服务
 --run          直接运行服务
 ```
-[commit]命令
+`commit`命令
 ```
 --repo_name <repo_name> --repo_path <repo_path> --revision <revision>
 ```
