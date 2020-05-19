@@ -1,0 +1,26 @@
+refresh_rate = "30 seconds"
+
+[appenders.stdout]
+kind = "console"
+filters = [ { kind = "threshold", level = "trace" } ]
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S.%3f)} {h({l:<6})} ${T}#{I:<6} {t}> {m}{n}" }
+
+[appenders.file]
+kind = "rolling_file"
+path = "log/log.log"
+filters = [ { kind = "threshold", level = "trace" } ]
+policy = { kind = "compound", trigger = { kind = "size", limit = "50mb" }, roller = { kind = "fixed_window", pattern = "log/log[{}].log", base = 1, count = 5 } }
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S.%3f)} {l:<6} ${T} {t}> {m}{n}" }
+
+[root]
+appenders = ["stdout", "file"]
+
+[loggers]
+"actix_ext::web" = {level = "info", appenders = ["stdout", "file"], additive = false}
+tokio_reactor = {level = "warn", appenders = ["stdout", "file"], additive = false}
+actix_server = {level = "info", appenders = ["stdout", "file"], additive = false}
+actix_web = {level = "info", appenders = ["stdout", "file"], additive = false}
+actix_http = {level = "warn", appenders = ["stdout", "file"], additive = false}
+h2 = {level = "warn", appenders = ["stdout", "file"], additive = false}
+hyper = {level = "warn", appenders = ["stdout", "file"], additive = false}
+reqwest = {level = "warn", appenders = ["stdout", "file"], additive = false}

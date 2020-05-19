@@ -1,0 +1,12 @@
+[build]
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.x86_64-pc-windows-msvc.openssl]
+rustc-link-search=["native=C:\\Program Files\\OpenSSL-Win64\\lib\\VC\\static"]
+rustc-cfg = ['const_fn','osslconf="OPENSSL_NO_SSL3_METHOD"','ossl101','ossl102','ossl102','ossl102f','ossl102h','ossl110','ossl110f','ossl110g','ossl110h','ossl111','ossl111b','ossl111c']
+rustc-link-lib = ["static=libcrypto64MT","static=libssl64MT"]
+version_number="1010104f"
+version="111"
+conf="OPENSSL_NO_SSL3_METHOD"

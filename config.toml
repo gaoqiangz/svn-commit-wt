@@ -1,0 +1,7 @@
+[worktile]
+product_name = "SVN"
+client_id = "自定义应用的CLIENT_ID"
+client_secret = "自定义应用的CLIENT_SECRECT"
+
+[http]
+listen = "127.0.0.1:1086"
