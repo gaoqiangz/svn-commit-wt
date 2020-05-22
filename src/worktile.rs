@@ -365,16 +365,6 @@ impl Client {
         Ok(ctx.access_token.as_ref().unwrap().token.to_owned())
     }
 
-    /// 生成请求的Headers
-    async fn build_request_headers(
-        &self,
-        access_token: &str
-    ) -> Result<reqwest::header::HeaderMap, AnyError> {
-        let mut headers = reqwest::header::HeaderMap::new();
-        headers.append("authorization", format!("Bearer {}", access_token).parse()?);
-        Ok(headers)
-    }
-
     /// 发起HTTP GET请求
     async fn http_get<R>(&self, uri: impl AsRef<str>) -> Result<R, AnyError>
     where
@@ -405,39 +395,30 @@ impl Client {
         let mut tried = false;
         let resp = loop {
             let access_token = self.access_token().await?;
-            let resp = self
-                .http_request_impl(
-                    method.clone(),
-                    uri.as_ref(),
-                    body.as_ref(),
-                    Some(self.build_request_headers(&access_token).await?)
-                )
-                .await?;
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.append("authorization", format!("Bearer {}", access_token).parse()?);
+            let resp =
+                self.http_request_impl(method.clone(), uri.as_ref(), body.as_ref(), Some(headers)).await?;
             // 检查响应结果判断是否需要刷新令牌
-            if resp.is_object() {
-                if let Some(resp) = resp.as_object() {
-                    if let Some(code) = resp.get("code") {
-                        if code.is_string() {
-                            //100026 	'access_token'无效
-                            //100028 	'access_token'已失效
-                            //100032 	'authorization_code'鉴权失败
-                            let code = code.as_str().unwrap();
-                            if (code == "100028" || code == "100032") && !tried {
-                                let mut ctx = self.ctx.write().unwrap();
-                                if let Some(token) = &ctx.access_token {
-                                    //检查令牌是否发生了改变，防止并发
-                                    if token.token == access_token {
-                                        //清空当前的令牌，使强制刷新
-                                        ctx.access_token = None;
-                                    }
-                                }
-                                tried = true;
-                                continue;
-                            } else {
-                                return Err(format!("Worktile API error code: {}", code).into());
-                            }
+            if let Some(code) =
+                resp.as_object().and_then(|obj| obj.get("code")).and_then(|code| code.as_str())
+            {
+                //100026 	'access_token'无效
+                //100028 	'access_token'已失效
+                //100032 	'authorization_code'鉴权失败
+                if (code == "100028" || code == "100032") && !tried {
+                    let mut ctx = self.ctx.write().unwrap();
+                    if let Some(token) = &ctx.access_token {
+                        //检查令牌是否发生了改变，防止并发
+                        if token.token == access_token {
+                            //清空当前的令牌，使强制刷新
+                            ctx.access_token = None;
                         }
                     }
+                    tried = true;
+                    continue;
+                } else {
+                    return Err(format!("Worktile API error code: {}", code).into());
                 }
             }
             break resp;
