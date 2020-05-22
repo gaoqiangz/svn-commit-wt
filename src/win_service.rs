@@ -16,9 +16,7 @@ const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
 
 windows_service::define_windows_service!(ffi_service_main, service_main);
 
-lazy_static::lazy_static! {
-    static ref SRV_REGISTERED: Mutex<Option<&'static (dyn WinService + Sync)>> = Mutex::new(None);
-}
+static mut SRV_REGISTERED: Option<&'static (dyn WinService + Sync)> = None;
 
 /// 退出代码
 pub mod exit_code {
@@ -116,7 +114,7 @@ pub trait WinService: Sync {
     {
         //挂载Windows服务
         unsafe {
-            *SRV_REGISTERED.lock().unwrap() = Some(transmute(self as &dyn WinService));
+            SRV_REGISTERED = Some(transmute(self as &dyn WinService));
         }
         if let Err(e) = service_dispatcher::start(self.name(), ffi_service_main) {
             if let windows_service::Error::Winapi(ref e) = e {
@@ -170,7 +168,7 @@ fn service_main(_: Vec<OsString>) {
 
 /// 启动服务
 fn run_service(from_scm: bool) -> Result<(), Box<dyn Error>> {
-    let srv = SRV_REGISTERED.lock().unwrap().take().ok_or("服务实例未注册")?;
+    let srv = unsafe { SRV_REGISTERED.take().ok_or("服务实例未注册")? };
     if let Err(e) = srv.initialize(from_scm) {
         if log_enabled!(log::Level::Error) {
             error!("initial error: {:?}", e);
