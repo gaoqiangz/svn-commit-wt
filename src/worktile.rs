@@ -90,7 +90,9 @@ struct Context {
     /// 代码仓库的ID列表
     repositories: HashMap<String, String>,
     /// 代码仓库的分支ID列表
-    branches: HashMap<(String, String), String>
+    branches: HashMap<(String, String), String>,
+    /// 工作项状态Id
+    states: HashMap<String, String>
 }
 
 impl Context {
@@ -100,7 +102,8 @@ impl Context {
             product_id: None,
             users: HashMap::new(),
             repositories: HashMap::new(),
-            branches: HashMap::new()
+            branches: HashMap::new(),
+            states: HashMap::new()
         }
     }
 }
@@ -129,6 +132,22 @@ struct ExtractIds {
     values: Vec<ExtractId>
 }
 
+/// 工作项状态
+#[derive(Deserialize)]
+struct WorkItemState {
+    id: String,
+    name: String
+}
+
+/// 工作项信息
+#[derive(Deserialize)]
+struct WorkItem {
+    id: String,
+    #[serde(rename = "type")]
+    item_type: String,
+    state: WorkItemState
+}
+
 /// 提交信息的元数据
 #[derive(Debug)]
 pub struct CommitMeta {
@@ -154,9 +173,13 @@ impl Client {
         let prod_id = self.product_id().await?;
         let repo_id = self.repository_id(repo.as_ref()).await?;
         let branch_id = self.branch_id(repo.as_ref(), branch.as_ref()).await?;
+        let mut commit_ids = identifiers_from_message(&meta.message)?;
 
         //确保用户存在于Worktile
         let _user_id = self.user_id(&meta.committer_name).await?;
+
+        let mut identifiers = commit_ids.0.clone();
+        identifiers.append(&mut commit_ids.1);
 
         //创建提交
         let _: ExtractId = self
@@ -171,7 +194,7 @@ impl Client {
                     "files_added": meta.files_added,
                     "files_removed": meta.files_removed,
                     "files_modified": meta.files_modified,
-                    "work_item_identifiers": identifiers_from_message(&meta.message)?
+                    "work_item_identifiers": identifiers
                 })
             )
             .await?;
@@ -187,6 +210,11 @@ impl Client {
                 })
             )
             .await?;
+
+        //完成工作项状态
+        for id in commit_ids.0 {
+            self.finish_work_item(id).await?;
+        }
 
         Ok(())
     }
@@ -336,6 +364,88 @@ impl Client {
         Ok(branch.id)
     }
 
+    /// 完成用户故事状态
+    async fn finish_work_item(&self, identifier: impl AsRef<str>) -> Result<(), AnyError> {
+        let work_item = self.work_item(identifier).await?;
+        let state_id = self.state_id("已完成").await?;
+
+        match work_item.state.name.as_str() {
+            "新建" | "进行中" => {},
+            //排除其他状态
+            _ => return Ok(())
+        }
+
+        //根据工作项类型取存储分类
+        let cat = match work_item.item_type.as_str() {
+            "epic" => "epics",
+            "feature" => "features",
+            "story" => "stories",
+            "task" => "tasks",
+            "bug" => "bugs",
+            "issue" => "issues",
+            unknown => return Err(format!("未知的工作项分类[{}]", unknown).into())
+        };
+
+        //修改状态
+        let _: ExtractId = self
+            .http_patch(format!("v1/agile/{}/{}", cat, work_item.id), json::json!({ "state_id": state_id }))
+            .await?;
+
+        Ok(())
+    }
+
+    /// 查询指定工作项
+    async fn work_item(&self, identifier: impl AsRef<str>) -> Result<WorkItem, AnyError> {
+        #[derive(Deserialize)]
+        struct WorkItemsResult {
+            values: Vec<WorkItem>
+        }
+        //查询
+        let mut result: WorkItemsResult =
+            self.http_get(format!("v1/agile/work_items?identifier={}", identifier.as_ref())).await?;
+
+        result.values.pop().ok_or(format!("工作项[{}]不存在", identifier.as_ref()).into())
+    }
+
+    /// 获取状态Id
+    async fn state_id(&self, name: impl AsRef<str>) -> Result<String, AnyError> {
+        let mut state_id = {
+            let ctx = self.ctx.read().unwrap();
+            if let Some(id) = ctx.states.get(name.as_ref()) {
+                Some(id.to_owned())
+            } else {
+                if !ctx.states.is_empty() {
+                    return Err(format!("[{}]状态Id不存在", name.as_ref()).into());
+                }
+                None
+            }
+        };
+        if state_id.is_none() {
+            #[derive(Deserialize)]
+            struct State {
+                id: String,
+                name: String
+            }
+            #[derive(Deserialize)]
+            struct StatesResult {
+                values: Vec<State>
+            }
+            //查询
+            let states: StatesResult = self.http_get("v1/agile/states").await?;
+            let mut ctx = self.ctx.write().unwrap();
+            for state in states.values {
+                ctx.states.insert(state.name, state.id);
+            }
+            if let Some(id) = ctx.states.get(name.as_ref()) {
+                state_id = Some(id.to_owned())
+            } else {
+                return Err(format!("[{}]状态Id不存在", name.as_ref()).into());
+            }
+        }
+
+        Ok(state_id.unwrap())
+    }
+
     /// 获取访问令牌
     async fn access_token(&self) -> Result<String, AnyError> {
         if let Some(access_token) = &self.ctx.read().unwrap().access_token {
@@ -379,6 +489,14 @@ impl Client {
         R: DeserializeOwned
     {
         self.http_request(reqwest::Method::POST, uri, body).await
+    }
+
+    /// 发起HTTP PATCH请求
+    async fn http_patch<R>(&self, uri: impl AsRef<str>, body: json::Value) -> Result<R, AnyError>
+    where
+        R: DeserializeOwned
+    {
+        self.http_request(reqwest::Method::PATCH, uri, body).await
     }
 
     /// 发起HTTP请求
@@ -473,16 +591,22 @@ fn tree_id(repo: &str, branch: &str) -> Result<String, AnyError> {
 }
 
 /// 从提交的Message里提取关联的Worktile工作项编号
-/// 如: #PROD-1234
-fn identifiers_from_message(message: &str) -> Result<Vec<String>, AnyError> {
+/// 如: #PROD-1234 (完成), @PROD-1234 (关联)
+/// 返回: tuple ([完成列表],[关联列表])
+fn identifiers_from_message(message: &str) -> Result<(Vec<String>, Vec<String>), AnyError> {
     use regex::Regex;
 
-    let re = Regex::new(r"(?m)#[^\s]*[A-Za-z0-9_]+-[0-9]+")?;
-    let mut identifiers = Vec::new();
+    let re = Regex::new(r"(?m)[#@][^\s]*[A-Za-z0-9_]+-[0-9]+")?;
+    let mut finished = Vec::new();
+    let mut related = Vec::new();
     for item in re.find_iter(message) {
-        identifiers.push(item.as_str()[1..].to_owned());
+        if item.as_str().starts_with("#") {
+            finished.push(item.as_str()[1..].to_owned());
+        } else {
+            related.push(item.as_str()[1..].to_owned());
+        }
     }
-    Ok(identifiers)
+    Ok((finished, related))
 }
 
 /// 解析Timestamp数值(秒)
