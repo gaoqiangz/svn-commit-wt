@@ -55,12 +55,12 @@ SvnCommitWT service --start
 -n,--repo_name SVN仓库名称
 -r,--revision  本交提交的版本号
 ```
-### 客户端提交代码
+# 客户端提交代码
 向代码仓库提交代码，commit message中提及Worktile的工作项即可，例如：
 ```
-svn commit -m 'feat(scope): #CD-7 some comment'
+svn commit -m 'feat(scope): #CD-7 some comment, @CD-8 some comment'
 ```
-这里的`CD-7`是Worktile工作项（史诗、特性、用户故事、任务、缺陷）的编号，在Worktile中点开某一个工作项即可在左上角找到工作项编号。
+这里的`CD-7`和`CD-8`是Worktile工作项（史诗、特性、用户故事、任务、缺陷）的编号，在Worktile中点开某一个工作项即可在左上角找到工作项编号，`@`仅关联工作项，`#`关联工作项并修改完成状态（只有当前状态为`新建`或`进行中`才修改为`已完成`）。
 
 # 官方实现
 https://github.com/sunjingyun/svn-commit-sync-to-worktile
